@@ -43,46 +43,51 @@ LAG(col,n,DEFAULT) 用于统计窗口内往上第n行值
 以下为实际开发代码：
 
 ```sql
-create table temp_20190926    
+create table temp_all_innet_users
 as
-select 
-t.user_id,
-t.is_acct,
-t.mon_total_fee fee,
-t.flux,
-t.sms,
-round(nvl(t1.total_dura,0)/60,2) dura,
-case when t2.profession_line='09' then 1 else 0 end online_flag,
-t.part_month
-from depecc1.wwc_4g_user_acct_info t
-left join (select user_id,month_id,max(total_dura) total_dura from report.dwa_v_m_cus_cb_sing_voice_u_tm group by user_id,month_id
-) t1 on t.user_id = t1.user_id and t.part_month= t1.month_id
-left join (select user_no,max(profession_line)  profession_line from report.dw_m_user_grid_list_all_tm 
-where acct_month='201908' group by user_no )   t2 on t.user_id = t2.user_no
-where t.part_month >='201812'
-and exists(
-select 1 from depecc1.wwc_4g_user_acct_info s 
+with temp_1 as (
+select user_id,month_id,max(total_dura) total_dura from report.dwa_v_m_cus_cb_sing_voice_u_tm group by user_id,month_id
+),
+temp_2 as (
+select user_no,max(profession_line)  profession_line from report.dw_m_user_grid_list_all_tm where acct_month='201908' group by user_no
+),
+temp_3 as (
+select user_id from depecc1.wwc_4g_user_acct_info s 
 inner join depecc1.dim_product_2i dim on s.product_id = dim.product_id
-where s.part_month='201812'
-and s.is_acct=1 
-and s.is_innet=1 
-and s.user_id = t.user_id
-) 
+where s.part_month='201812' 
+  and s.is_acct=1
+  and s.is_innet=1
+)
+select 
+	t.user_id,
+	t.is_acct,
+	t.mon_total_fee fee,
+	t.flux,
+	t.sms,
+	t1.mon_total_fee pz_fee,
+	t1.flux	pz_flux,
+	t1.dura	pz_dura,
+	round(nvl(t2.total_dura,0)/60,2) dura,
+	case when t3.profession_line='09' then 1 else 0 end online_flag,
+	t.part_month
+from depecc1.wwc_4g_user_acct_info t
+inner join temp_1 t1 on t.user_id = s.user_id
+left join tmep_2 t2 on t.user_id = t2.user_id and t.part_month= t2.month_id
+left join tmep_3 t3 on t.user_id = t3.user_no
+where t.part_month >='201812';
 
-
-
-select cast(count(case when is_acct=1 and is_acct1=0 then 1 else null end) as decimal(32,2)),  
-       cast(sum(case when is_acct=1 and is_acct1=0 then pz_fee else 0 end) as decimal(32,2)),  
-       cast(sum(case when is_acct=1 and is_acct1=0 then fee1 else 0 end)as decimal(32,2)),  
-       cast(sum(case when is_acct=1 and is_acct1=0 then flux else 0 end)as decimal(32,2)),  
-       cast(sum(case when is_acct=1 and is_acct1=0 then dura else 0 end)as decimal(32,2)),  
-       cast(sum(case when is_acct=1 and is_acct1=0 then pz_fee else 0 end) as decimal(32,2)),  
-       cast(sum(case when is_acct=1 and is_acct1=0 then pz_flux else 0 end)as decimal(32,2)),  
-       cast(sum(case when is_acct=1 and is_acct1=0 then pz_dura else 0 end)as decimal(32,2)),  
-       cast(count(case when part_month2='201908' and is_acct=1 and is_acct2=0 then 1 else null end)as decimal(32,2)),  
-       cast(sum(case when part_month2='201908' and is_acct=1 and is_acct2=0 then pz_fee else 0 end)as decimal(32,2)),  
-       cast(sum(case when part_month2='201908' and is_acct=1 and is_acct2=0 then pz_flux else 0 end)as decimal(32,2)),  
-       cast(sum(case when part_month2='201908' and is_acct=1 and is_acct2=0 then pz_dura else 0 end)as decimal(32,2)),  
+select count(case when is_acct=1 and is_acct1=0 then 1 else null end),  
+       sum(case when is_acct=1 and is_acct1=0 then pz_fee else 0 end),  
+       sum(case when is_acct=1 and is_acct1=0 then fee1 else 0 end),  
+       sum(case when is_acct=1 and is_acct1=0 then flux else 0 end),  
+       sum(case when is_acct=1 and is_acct1=0 then dura else 0 end),  
+       sum(case when is_acct=1 and is_acct1=0 then pz_fee else 0 end),  
+       sum(case when is_acct=1 and is_acct1=0 then pz_flux else 0 end),  
+       sum(case when is_acct=1 and is_acct1=0 then pz_dura else 0 end),  
+       count(case when part_month2='201908' and is_acct=1 and is_acct2=0 then 1 else null end),  
+       sum(case when part_month2='201908' and is_acct=1 and is_acct2=0 then pz_fee else 0 end),  
+       sum(case when part_month2='201908' and is_acct=1 and is_acct2=0 then pz_flux else 0 end),  
+       sum(case when part_month2='201908' and is_acct=1 and is_acct2=0 then pz_dura else 0 end),  
        part_month,
        online_flag
 from (
@@ -105,9 +110,10 @@ select t.user_id,
        lead(nvl(flux,0),8,0) over(partition by user_id order by part_month) flux2,
        lead(nvl(dura,0),8,0) over(partition by user_id order by part_month) dura2,
        lead(nvl(part_month,0),8,0) over(partition by user_id order by part_month) part_month2
-from temp_20190926_1 t
+from temp_all_innet_users t
 ) t1
 group by part_month,online_flag
+
 ```
 
 
