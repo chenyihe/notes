@@ -129,7 +129,7 @@ kafkaProerties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,StringSerializer.c
 ```JAVA
 //配置一个key 为string类型，value为person类型的consumer
 consumerProperties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,StringDeserializer.class);
-       consumerProperties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,StringDeserializer.class);
+       consumerProperties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,PersonSerializer.class);
 ```
 
 
